@@ -7,11 +7,11 @@
 
 #define DEBUG
 
-#define LDR_PIN A2
+#define LDR_PIN A0
 #define SERVO_PIN 11
-#define CALIBRATE_PIN 6
-#define PROCEED_PIN 5
-#define CYCLE_PIN 4
+#define CALIBRATE_PIN A1
+#define TEST_PIN A2
+#define CYCLE_PIN A3
 
 #define STEPS_TO_DEGREES 360 / 16384  // 16384 steps in 1 revolution (4096 steps per revolution of the stepper motor, 1:4 gear ratio)
 
@@ -34,17 +34,18 @@ struct laser_diode {
   int wavelength;
   String wavelength_string;
   int pos;
+  int pin;
 };
 
-laser_diode laser_diode_0 = {0, 450, "450nm", 2};
-laser_diode laser_diode_1 = {1, 520, "520nm", 45};
-laser_diode laser_diode_2 = {2, 635, "635nm", 89};
-laser_diode laser_diode_3 = {3, 660, "660nm", 134};
-laser_diode laser_diode_4 = {4, 670, "670nm", 176};
+laser_diode laser_diode_0 = {0, 450, "450nm", 2, 6};
+laser_diode laser_diode_1 = {1, 520, "520nm", 45, 7};
+laser_diode laser_diode_2 = {2, 635, "635nm", 89, 8};
+laser_diode laser_diode_3 = {3, 660, "660nm", 134, 9};
+laser_diode laser_diode_4 = {4, 670, "670nm", 176, 10};
 laser_diode selected_diode;
 
 int time = 0;
-AccelStepper stepper(AccelStepper::HALF4WIRE, 3, 1, 2, 0, false);
+AccelStepper stepper(AccelStepper::HALF4WIRE, 5, 3, 4, 2, false);
 Servo servo;
 hd44780_I2Cexp lcd;
 int min_pos;         // In ticks
@@ -82,22 +83,21 @@ int calibrate(laser_diode diode) {
     pos = stepper.currentPosition();
 
     #ifdef DEBUG  // Serial debug outputs will slow down the code if they run continuously
-  if (!digitalRead(CALIBRATE_PIN)) {
-    Serial.println(ldr_val);
-    Serial.println(pos);
-  }
+      if (!digitalRead(CALIBRATE_PIN)) {
+        Serial.println(ldr_val);
+        Serial.println(pos);
+      }
     #endif
 
     if (ldr_val < min_ldr_val) {  // Checks if the current LDR reading is higher than the recorded maximum value: If yes, updates the maximum LDR value to the current reading and updates the position at which the maximum was recorded
-
       min_ldr_val = ldr_val;
       min_min_pos = max_min_pos = pos;
 
       #ifdef DEBUG
-    Serial.print("NEW MIN: ");  // Prints the recorded maximum and the position at which it was recorded
-    Serial.print(min_ldr_val);
-    Serial.print(" | ");
-    Serial.println(pos);
+        Serial.print("NEW MIN: ");  // Prints the recorded maximum and the position at which it was recorded
+        Serial.print(min_ldr_val);
+        Serial.print(" | ");
+        Serial.println(pos);
       #endif
     } else if (ldr_val == min_ldr_val) {
       if (ldr_val > prev_ldr_val) {  // Updates minimum position at which the minimum transmission is recorded only if the previous reading was greater than the current reading
@@ -133,10 +133,10 @@ int calibrate(laser_diode diode) {
   stepper.disableOutputs(); // Stop powering the stepper motor to save power and prevent overheating
 
   #ifdef DEBUG
-Serial.println("Calibrated to blank cuvette");
-Serial.print("min_pos: ");
-Serial.println(min_pos);
-Serial.print("min_min_pos: ");
+    Serial.println("Calibrated to blank cuvette");
+    Serial.print("min_pos: ");
+    Serial.println(min_pos);
+    Serial.print("min_min_pos: ");
     Serial.println(min_min_pos);
     Serial.print("max_min_pos: ");
     Serial.println(max_min_pos);
@@ -149,9 +149,9 @@ Serial.print("min_min_pos: ");
 
 int test(laser_diode diode) {
   #ifdef DEBUG
-Serial.print("test | ");
-Serial.println(diode.id);
-#endif
+    Serial.print("test | ");
+    Serial.println(diode.id);
+  #endif
 
   int ldr_val = 0;  // Directly proportional to voltage (5V), range is [0, 1023]
   int prev_ldr_val = 0;
@@ -218,14 +218,14 @@ Serial.println(diode.id);
   #ifdef DEBUG
     Serial.print("Rotation in ticks: ");
     Serial.println(min_pos);
-  Serial.print("Maximum LDR value: ");
-  Serial.println(min_ldr_val);
-  Serial.print("min_pos: ");
-  Serial.println(min_pos);
-  Serial.print("min_min_pos: ");
-  Serial.println(min_min_pos);
-  Serial.print("max_min_pos: ");
-  Serial.println(max_min_pos);
+    Serial.print("Maximum LDR value: ");
+    Serial.println(min_ldr_val);
+    Serial.print("min_pos: ");
+    Serial.println(min_pos);
+    Serial.print("min_min_pos: ");
+    Serial.println(min_min_pos);
+    Serial.print("max_min_pos: ");
+    Serial.println(max_min_pos);
   #endif
 
   return min_pos;
@@ -236,10 +236,14 @@ void setup() {
   Serial.begin(9600);
 
   pinMode(CALIBRATE_PIN, INPUT_PULLUP);
-  pinMode(PROCEED_PIN, INPUT_PULLUP);
+  pinMode(TEST_PIN, INPUT_PULLUP);
   pinMode(CYCLE_PIN, INPUT_PULLUP);
   servo.attach(SERVO_PIN, 520, 2350);  // Set up servo PWM with manufacturer recommended limits
 
+  pinMode(0, OUTPUT);
+  pinMode(1, OUTPUT);
+  pinMode(2, OUTPUT);
+  pinMode(3, OUTPUT);
   stepper.setMaxSpeed(600);  // Define motion profile of the stepper motor
   stepper.setAcceleration(200);
 
@@ -265,33 +269,43 @@ void loop() {
 
         switch (selected_diode.id) {
           case 0:
+            selected_diode = laser_diode_0;
+            digitalWrite(laser_diode_4.pin, LOW);
+            digitalWrite(laser_diode_0.pin, HIGH);
+            lcd.setCursor(0, 0);
+            lcd.print("Laser 0:");
+            break;
+
+          case 1:
             selected_diode = laser_diode_1;
+            digitalWrite(laser_diode_0.pin, LOW);
+            digitalWrite(laser_diode_1.pin, HIGH);
             lcd.setCursor(0, 0);
             lcd.print("Laser 1:");
             break;
 
-          case 1:
+          case 2:
             selected_diode = laser_diode_2;
+            digitalWrite(laser_diode_1.pin, LOW);
+            digitalWrite(laser_diode_2.pin, HIGH);
             lcd.setCursor(0, 0);
             lcd.print("Laser 2:");
             break;
 
-          case 2:
+          case 3:
             selected_diode = laser_diode_3;
+            digitalWrite(laser_diode_2.pin, LOW);
+            digitalWrite(laser_diode_3.pin, HIGH);
             lcd.setCursor(0, 0);
             lcd.print("Laser 3:");
             break;
 
-          case 3:
+          case 4:
             selected_diode = laser_diode_4;
+            digitalWrite(laser_diode_3.pin, LOW);
+            digitalWrite(laser_diode_4.pin, HIGH);
             lcd.setCursor(0, 0);
             lcd.print("Laser 4:");
-            break;
-
-          case 4:
-            selected_diode = laser_diode_0;
-            lcd.setCursor(0, 0);
-            lcd.print("Laser 0:");
             break;
         }
 
@@ -313,7 +327,7 @@ void loop() {
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("Calibrated");
-    } else if (!digitalRead(PROCEED_PIN)) {  // Run testing
+    } else if (!digitalRead(TEST_PIN)) {  // Run testing
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("Testing...");
