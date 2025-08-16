@@ -116,9 +116,9 @@ int calibrate(laser_diode diode) {
 
   stepper.setCurrentPosition(0);
 
-  if (max_min_pos == 8192) {             // Minmum transmission range 'overflows' from 8192 back to 0
-    max_min_pos = overflow_max_min_pos;  // Set maximum position of minimum transmission range to previously recorded value
-    min_min_pos -= 8192;                 // Minimum position of minimum transmission will be negative to account for overflow
+  if (max_min_pos == 8192 && overflow_max_min_pos > 0) {  // Minmum transmission range 'overflows' from 8192 back to 0
+    max_min_pos = overflow_max_min_pos;                   // Set maximum position of minimum transmission range to previously recorded value
+    min_min_pos -= 8192;                                  // Minimum position of minimum transmission will be negative to account for overflow
   }
 
   min_pos = (double)min_min_pos / 2 + (double)max_min_pos / 2;  // Find the middle of the minimum transmission range
@@ -203,9 +203,9 @@ int test(laser_diode diode) {
     }
   }
 
-  if (max_min_pos == 8192) {             // Minmum transmission range 'overflows' from 8192 back to 0
-    max_min_pos = overflow_max_min_pos;  // Set maximum position of minimum transmission range to previously recorded value
-    min_min_pos -= 8192;                 // Minimum position of minimum transmission will be negative to account for overflow
+  if (max_min_pos == 8192 && overflow_max_min_pos > 0) {  // Minmum transmission range 'overflows' from 8192 back to 0
+    max_min_pos = overflow_max_min_pos;                   // Set maximum position of minimum transmission range to previously recorded value
+    min_min_pos -= 8192;                                  // Minimum position of minimum transmission will be negative to account for overflow
   }
 
   min_pos = (double)min_min_pos / 2 + (double)max_min_pos / 2;  // Find the middle of the minimum transmission range
